@@ -1,0 +1,11 @@
+---
+global:
+  download_to: /sd/rtorrent/torrents
+  log_file: /sd/rtorrent/glt.log
+feeds:
+  - name: TV Torrents
+    url: "http://www.exemple.com/path/to/rss/torrent.rss"
+    include: "[Mm]usic"
+    exclude: "720p"
+
+# vim: ft=yaml ts=8 sw=2

@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+#
+
+require 'rubygems'
+require 'feedzirra'
+
+$conf = YAML.load_file('glt.conf')
+
+feed_url = $conf["feeds"].first["url"]
+
+feed = Feedzirra::Feed.fetch_and_parse feed_url
+
+feed.entries.each do |entry|
+  title = entry.title.gsub /[^\w-]+/, '_'
+  torrent = "#{title}.torrent"
+  command = ['wget', entry.url, '-O', torrent]
+  puts title
+  system *command
+end
