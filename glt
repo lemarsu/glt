@@ -5,6 +5,33 @@ require 'rubygems'
 require 'feedzirra'
 require 'yaml'
 
+class TorrentFormatter
+  def initialize(feed_entry)
+    @feed_entry = feed_entry
+  end
+
+  def title
+    @feed_entry.title.gsub /[^\w-]+/, '_'
+  end
+
+  def file_name
+    "#{title}.torrent"
+  end
+
+  def url
+    @feed_entry.url
+  end
+
+  def excluded?
+    false
+  end
+
+  def download
+    puts "Downloading [#{url}] into [#{file_name}]"
+    # command = ['wget', entry.url, '-O', torrent]
+  end
+end
+
 CONF_PATH = [ENV['GLT_CONF_PATH'], 'glt.conf', "~/.glt.conf", "/etc/glt.conf"].find do |conf_path|
   conf_path && File.exists?(File.expand_path(conf_path.to_s))
 end
@@ -21,9 +48,6 @@ feed_url = $conf["feeds"].first["url"]
 feed = Feedzirra::Feed.fetch_and_parse feed_url
 
 feed.entries.each do |entry|
-  title = entry.title.gsub /[^\w-]+/, '_'
-  torrent = "#{title}.torrent"
-  command = ['wget', entry.url, '-O', torrent]
-  puts title
-  system *command
+  tf = TorrentFormatter.new entry
+  tf.download unless tf.excluded?
 end
