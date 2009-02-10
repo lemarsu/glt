@@ -5,8 +5,8 @@ require 'rubygems'
 require 'feedzirra'
 require 'yaml'
 
-[ENV['GLT_CONF_PATH'], 'glt.conf', "~/.glt.conf", "/etc/glt.conf"].each do |conf_path|
-  CONF_PATH = conf_path if File.exists?(File.expand_path(conf_path.to_s))
+CONF_PATH = [ENV['GLT_CONF_PATH'], 'glt.conf', "~/.glt.conf", "/etc/glt.conf"].find do |conf_path|
+  conf_path && File.exists?(File.expand_path(conf_path.to_s))
 end
 
 unless CONF_PATH
