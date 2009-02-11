@@ -23,12 +23,24 @@ class TorrentFormatter
   end
 
   def excluded?
-    false
+    title =~ /720p/
   end
 
   def download
-    puts "Downloading [#{url}] into [#{file_name}]"
-    # command = ['wget', entry.url, '-O', torrent]
+    full_path = File.join(dir_path, file_name)
+    download_to(url, full_path)
+  end
+
+  def dir_path
+    $conf['global'] && $conf['global']['download_to'] || '.'
+  end
+
+  private
+
+  def download_to(url, path, force = false)
+    return if File.exists?(path) && !force
+    puts "Downloading [#{url}] into [#{path}]"
+    system 'wget', '-q', url, '-O', path
   end
 end
 
