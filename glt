@@ -4,6 +4,7 @@
 require 'rubygems'
 require 'feedzirra'
 require 'yaml'
+require 'logger'
 
 class TorrentFormatter
   def initialize(feed_entry)
@@ -42,7 +43,6 @@ class TorrentFormatter
 
   def download_to(url, path, force = false)
     return if File.exists?(path) && !force
-    puts "Downloading [#{url}] into [#{path}]"
     system 'wget', '-q', url, '-O', path
   end
 end
@@ -58,11 +58,21 @@ end
 
 $conf = YAML.load_file(CONF_PATH)
 
+$logger = Logger.new($conf['global'] && $conf['global']['log_file'] || STDERR)
+
 feed_url = $conf["feeds"].first["url"]
 
 feed = Feedzirra::Feed.fetch_and_parse feed_url
 
+$logger.info "Starting"
+
 feed.entries.each do |entry|
   tf = TorrentFormatter.new entry
-  tf.download unless tf.excluded?
+  if tf.excluded?
+    $logger.info %[Skipping file "#{tf.file_name}"]
+  else
+    $logger.info %[Downloading "#{tf.url}" into "#{tf.full_path}"]
+    tf.download
+  end
 end
+$logger.info "Exiting"
