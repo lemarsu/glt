@@ -47,8 +47,10 @@ class TorrentFormatter
   end
 end
 
-CONF_PATH = [ENV['GLT_CONF_PATH'], 'glt.conf', "~/.glt.conf", "/etc/glt.conf"].find do |conf_path|
-  conf_path && File.exists?(File.expand_path(conf_path.to_s))
+CONF_PATH = [ENV['GLT_CONF_PATH'], 'glt.conf', "~/.glt.conf", "/etc/glt.conf"].reject do |path|
+  path.to_s.empty?
+end.map {|path| File.expand_path path}.find do |conf_path|
+  File.exists?(File.expand_path(conf_path.to_s))
 end
 
 unless CONF_PATH
