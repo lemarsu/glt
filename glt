@@ -27,12 +27,15 @@ class TorrentFormatter
   end
 
   def download
-    full_path = File.join(dir_path, file_name)
     download_to(url, full_path)
   end
 
   def dir_path
     $conf['global'] && $conf['global']['download_to'] || '.'
+  end
+
+  def full_path
+    File.join(dir_path, file_name)
   end
 
   private
