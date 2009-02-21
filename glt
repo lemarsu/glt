@@ -66,6 +66,12 @@ feed_url = $conf["feeds"].first["url"]
 
 feed = Feedzirra::Feed.fetch_and_parse feed_url
 
+# FIXME Should put the right condition
+if feed.is_a? Integer
+  $logger.debug "Can't connect, will try again later"
+  exit 0
+end
+
 $logger.info "Starting"
 
 feed.entries.each do |entry|
