@@ -2,11 +2,13 @@
 #
 
 require 'rubygems'
-require 'feedzirra'
+require 'simple-rss'
 require 'yaml'
 require 'logger'
+require 'open-uri'
 
 class TorrentFormatter
+  class DownloadError < StandardError; end
   def initialize(feed_entry)
     @feed_entry = feed_entry
   end
@@ -20,7 +22,7 @@ class TorrentFormatter
   end
 
   def url
-    @feed_entry.url
+    @feed_entry.link
   end
 
   def excluded?
@@ -42,8 +44,19 @@ class TorrentFormatter
   private
 
   def download_to(url, path, force = false)
-    return if File.exists?(path) && !force
-    system 'wget', '-q', url, '-O', path
+    if File.exists?(path) && !force
+      raise DownloadError.new "File exists (force off)"
+    end
+    File.open(path, "wb") do |f|
+      open(url) do |u|
+        buffer = ""
+        until (size = u.read buffer, 1024).zero?
+          f.write buffer, size
+        end
+      end
+    end
+  rescue OpenURI::HTTPError, SystemCallError => x
+    raise DownloadError.new x.message
   end
 end
 
@@ -62,25 +75,35 @@ $conf = YAML.load_file(CONF_PATH)
 
 $logger = Logger.new($conf['global'] && $conf['global']['log_file'] || STDERR)
 
-feed_url = $conf["feeds"].first["url"]
-
-feed = Feedzirra::Feed.fetch_and_parse feed_url
-
-# FIXME Should put the right condition
-if feed.is_a? Integer
-  $logger.debug "Can't connect, will try again later"
-  exit 0
-end
-
 $logger.info "Starting"
+$conf["feeds"].each do |feed_conf|
+  begin
+    $logger.info "Searching #{feed_conf["name"]}..."
 
-feed.entries.each do |entry|
-  tf = TorrentFormatter.new entry
-  if tf.excluded?
-    $logger.info %[Skipping file "#{tf.file_name}"]
-  else
-    $logger.info %[Downloading "#{tf.url}" into "#{tf.full_path}"]
-    tf.download
+    # FIXME Catch posibles exceptions
+    feed = open feed_conf["url"] {|f| SimpleRSS.parse f}
+
+    unless feed
+      $logger.debug "Can't connect, will try again later"
+      next
+    end
+
+    feed.items.each do |entry|
+      tf = TorrentFormatter.new entry
+      if tf.excluded?
+        $logger.info %[Skipping file "#{tf.file_name}: Excluded by pattern."]
+      else
+        begin
+          tf.download
+        rescue TorrentFormatter::DownloadError => x
+          $logger.warn %[Couldn't download "#{tf.url}" into "#{tf.full_path}": #{x}]
+        else
+          $logger.info %[Downloaded "#{tf.url}" into "#{tf.full_path}"]
+        end
+      end
+    end
+  ensure
+    $logger.info "Finished #{feed_conf["name"]}"
   end
 end
 $logger.info "Exiting"
