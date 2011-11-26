@@ -9,8 +9,9 @@ require 'open-uri'
 
 class TorrentFormatter
   class DownloadError < StandardError; end
-  def initialize(feed_entry)
+  def initialize(feed_entry, feed_conf = {})
     @feed_entry = feed_entry
+    @feed_conf = feed_conf
   end
 
   def title
@@ -26,7 +27,8 @@ class TorrentFormatter
   end
 
   def excluded?
-    title =~ /720p/
+    return false if @feed_conf['exclude'].nil?
+    Array(@feed_conf['exclude']).map {|re| Regexp.new(re)}.any? {|re| re.match(title)}
   end
 
   def download
@@ -89,17 +91,18 @@ $conf["feeds"].each do |feed_conf|
     end
 
     feed.items.each do |entry|
-      tf = TorrentFormatter.new entry
+      tf = TorrentFormatter.new entry, feed_conf
       if tf.excluded?
         $logger.info %[Skipping file "#{tf.file_name}: Excluded by pattern."]
+        next
+      end
+
+      begin
+        tf.download
+      rescue TorrentFormatter::DownloadError => x
+        $logger.warn %[Couldn't download "#{tf.url}" into "#{tf.full_path}": #{x}]
       else
-        begin
-          tf.download
-        rescue TorrentFormatter::DownloadError => x
-          $logger.warn %[Couldn't download "#{tf.url}" into "#{tf.full_path}": #{x}]
-        else
-          $logger.info %[Downloaded "#{tf.url}" into "#{tf.full_path}"]
-        end
+        $logger.info %[Downloaded "#{tf.url}" into "#{tf.full_path}"]
       end
     end
   ensure
