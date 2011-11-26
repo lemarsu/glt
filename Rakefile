@@ -43,3 +43,9 @@ task :default => :spec
 
 require 'yard'
 YARD::Rake::YardocTask.new
+
+task 'clean' do
+  %w[pkg doc rdoc coverage].each do |dir|
+    FileUtils.rm_rf dir
+  end
+end
