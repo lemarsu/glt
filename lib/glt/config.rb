@@ -68,12 +68,12 @@ class Glt::Config
           ret.gsub!(Regexp.new(args[0]), args[1])
         when 'suffix'
           next unless args.size == 1
-          ret += args.first
+          ret.gsub!(/$/, args.first)
         when 'prefix'
           next unless args.size == 1
-          ret = args.first + ret
+          ret.gsub!(/^/, args.first)
         when 'remove'
-          next unless args.size == 1
+          next unless args.size >= 1
           ret.gsub!(Regexp.new(args.first), '')
         end
       end
