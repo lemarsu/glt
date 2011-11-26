@@ -21,7 +21,7 @@ class Glt::Downloader
         end
       end
     end
-  rescue OpenURI::HTTPError, SystemCallError => x
+  rescue Timeout::Error, OpenURI::HTTPError, SystemCallError => x
     raise DownloadError.new x.message
   end
 end

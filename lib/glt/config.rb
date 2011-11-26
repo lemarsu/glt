@@ -55,6 +55,10 @@ class Glt::Config
       @exclude ||= data['exclude'] ? Array(data['exclude']) : []
     end
 
+    def host_name
+      URI.parse(url).host
+    end
+
     private :conf
     private :data
   end

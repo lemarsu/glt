@@ -15,9 +15,10 @@ class Glt::Feed
 
   def initialize(feed_conf)
     @feed_conf = feed_conf
-    # FIXME Catch posibles exceptions
     @feed = open(feed_conf.url) {|f| SimpleRSS.parse f}
-    raise FeedError.new "Couldn't connect." unless @feed
+    raise FeedError, "Couldn't connect." unless @feed
+  rescue Timeout::Error, SystemCallError => ex
+    raise FeedError, ex.message, caller(2)
   end
 
   def items

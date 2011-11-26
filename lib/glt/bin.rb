@@ -26,6 +26,8 @@ class Glt::Bin
     Glt::Feed.open feed_conf do |feed|
       feed.all.each {|fi| download_feed_item(fi)}
     end
+  rescue Glt::Feed::FeedError => ex
+    logger.warn "Couldn't connect to #{feed_conf.host_name}: #{ex.message}"
   ensure
     logger.info "Finished #{feed_conf.name}"
   end
