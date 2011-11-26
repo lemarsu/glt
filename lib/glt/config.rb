@@ -59,8 +59,36 @@ class Glt::Config
       URI.parse(url).host
     end
 
+    def rename(str)
+      ret = str.dup
+      rename_actions.each do |action, *args|
+        case action
+        when 'sub'
+          next unless args.size >= 2
+          ret.gsub!(Regexp.new(args[0]), args[1])
+        when 'suffix'
+          next unless args.size == 1
+          ret += args.first
+        when 'prefix'
+          next unless args.size == 1
+          ret = args.first + ret
+        when 'remove'
+          next unless args.size == 1
+          ret.gsub!(Regexp.new(args.first), '')
+        end
+      end
+      # title = str.gsub /[^\w-]+/, '_'
+      # "#{title}.torrent"
+      ret
+    end
+
+    def rename_actions
+      (data['rename']||[])
+    end
+
     private :conf
     private :data
+
   end
 end
 
