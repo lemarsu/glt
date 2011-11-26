@@ -6,50 +6,21 @@ require 'simple-rss'
 require 'yaml'
 require 'logger'
 require 'open-uri'
+require 'pathname'
 
-class TorrentFormatter
+class Downloader
   class DownloadError < StandardError; end
-  def initialize(feed_entry, feed_conf = {})
-    @feed_entry = feed_entry
-    @feed_conf = feed_conf
+
+  def initialize(folder)
+    @folder = Pathname.new(folder)
   end
 
-  def title
-    @feed_entry.title.gsub /[^\w-]+/, '_'
-  end
-
-  def file_name
-    "#{title}.torrent"
-  end
-
-  def url
-    @feed_entry.link
-  end
-
-  def excluded?
-    return false if @feed_conf['exclude'].nil?
-    Array(@feed_conf['exclude']).map {|re| Regexp.new(re)}.any? {|re| re.match(title)}
-  end
-
-  def download
-    download_to(url, full_path)
-  end
-
-  def dir_path
-    $conf['global'] && $conf['global']['download_to'] || '.'
-  end
-
-  def full_path
-    File.join(dir_path, file_name)
-  end
-
-  private
-
-  def download_to(url, path, force = false)
-    if File.exists?(path) && !force
+  def download_to(url, filename, force = false)
+    path = @folder + filename
+    if path.exist? && !force
       raise DownloadError.new "File exists (force off)"
     end
-    File.open(path, "wb") do |f|
+    path.open("wb") do |f|
       open(url) do |u|
         buffer = ""
         until (size = u.read buffer, 1024).zero?
@@ -59,6 +30,59 @@ class TorrentFormatter
     end
   rescue OpenURI::HTTPError, SystemCallError => x
     raise DownloadError.new x.message
+  end
+end
+
+class Feed
+  class FeedError < StandardError; end
+
+  def self.open(url)
+    yield new url
+  end
+
+  def initialize(feed_conf)
+    @feed_conf = feed_conf
+    # FIXME Catch posibles exceptions
+    @feed = open(feed_conf["url"]) {|f| SimpleRSS.parse f}
+    raise FeedError.new "Couldn't connect." unless @feed
+  end
+
+  def items
+    all.reject {|i| exclude?(i)}
+  end
+
+  def all(&blk)
+    @feed.items.map {|i| Item.new(self, i)}.each(&blk)
+  end
+
+  def exclude?(item)
+    return false if @feed_conf['exclude'].nil?
+    Array(@feed_conf['exclude']).map {|re| Regexp.new(re)}.any? {|re| re.match(item.name)}
+  end
+
+  class Item
+    attr_reader :feed
+
+    def initialize(feed, item)
+      @feed, @item = feed, item
+    end
+
+    def name
+      @item.title
+    end
+
+    def url
+      @item.link
+    end
+
+    def file_name
+      title = name.gsub /[^\w-]+/, '_'
+      "#{title}.torrent"
+    end
+
+    def excluded?
+      feed.exclude?(self)
+    end
   end
 end
 
@@ -78,31 +102,25 @@ $conf = YAML.load_file(CONF_PATH)
 $logger = Logger.new($conf['global'] && $conf['global']['log_file'] || STDERR)
 
 $logger.info "Starting"
+downloader = Downloader.new($conf['global'] && $conf['global']['download_to'] || '.')
 $conf["feeds"].each do |feed_conf|
   begin
     $logger.info "Searching #{feed_conf["name"]}..."
 
-    # FIXME Catch posibles exceptions
-    feed = open feed_conf["url"] {|f| SimpleRSS.parse f}
+    Feed.open feed_conf do |feed|
+      feed.all.each do |fi|
+        if fi.excluded?
+          $logger.info %[Skipping file "#{fi.file_name}: Excluded by pattern."]
+          next
+        end
 
-    unless feed
-      $logger.debug "Can't connect, will try again later"
-      next
-    end
-
-    feed.items.each do |entry|
-      tf = TorrentFormatter.new entry, feed_conf
-      if tf.excluded?
-        $logger.info %[Skipping file "#{tf.file_name}: Excluded by pattern."]
-        next
-      end
-
-      begin
-        tf.download
-      rescue TorrentFormatter::DownloadError => x
-        $logger.warn %[Couldn't download "#{tf.url}" into "#{tf.full_path}": #{x}]
-      else
-        $logger.info %[Downloaded "#{tf.url}" into "#{tf.full_path}"]
+        begin
+          downloader.download_to(fi.url, fi.file_name)
+        rescue Downloader::DownloadError => x
+          $logger.warn %[Couldn't download "#{fi.url}" into "#{fi.file_name}": #{x}]
+        else
+          $logger.info %[Downloaded "#{fi.url}" into "#{fi.file_name}"]
+        end
       end
     end
   ensure
