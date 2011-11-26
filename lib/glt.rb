@@ -6,5 +6,6 @@ module Glt
   autoload :Config,     'glt/config'
   autoload :Downloader, 'glt/downloader'
   autoload :Feed,       'glt/feed'
+  autoload :Version,    'glt/version'
 end
 

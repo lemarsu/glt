@@ -10,6 +10,8 @@ rescue Bundler::BundlerError => e
   exit e.status_code
 end
 require 'rake'
+$: << File.expand_path('../lib', __FILE__)
+require 'glt'
 
 require 'jeweler'
 Jeweler::Tasks.new do |gem|
@@ -21,7 +23,7 @@ Jeweler::Tasks.new do |gem|
   gem.description = %Q{Simple utility to download files from an RSS feed.}
   gem.email = "ch.ruelle@lemarsu.com"
   gem.authors = ["LeMarsu"]
-  gem.version = "0.1"
+  gem.version = "#{Glt::Version}" # I know, it's stupid, but they want a not frozen string...
   # dependencies defined in Gemfile
 end
 Jeweler::RubygemsDotOrgTasks.new
