@@ -12,34 +12,10 @@ $: << File.expand_path('../../lib', __FILE__)
 
 require 'glt'
 
-BIN_NAME = "glt"
-
-conf = Glt::Config.new
-
-conf.logger.info "Starting"
-downloader = Glt::Downloader.new(conf.download_path)
-conf.feeds.each do |feed_conf|
-  begin
-    conf.logger.info "Searching #{feed_conf.name}..."
-
-    Glt::Feed.open feed_conf do |feed|
-      feed.all.each do |fi|
-        if fi.excluded?
-          conf.logger.info %[Skipping file "#{fi.file_name}: Excluded by pattern."]
-          next
-        end
-
-        begin
-          downloader.download_to(fi.url, fi.file_name)
-        rescue Glt::Downloader::DownloadError => x
-          conf.logger.warn %[Couldn't download "#{fi.url}" into "#{fi.file_name}": #{x}]
-        else
-          conf.logger.info %[Downloaded "#{fi.url}" into "#{fi.file_name}"]
-        end
-      end
-    end
-  ensure
-    conf.logger.info "Finished #{feed_conf.name}"
-  end
+unless config = Glt::Config.find
+  STDERR.puts "Can't find configuration path. aborting"
+  exit 2
 end
-conf.logger.info "Exiting"
+
+bin = Glt::Bin.new config
+bin.start

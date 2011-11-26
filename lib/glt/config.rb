@@ -1,18 +1,17 @@
 class Glt::Config
   attr_reader :conf
 
-  def initialize
-    conf_path = [ENV['GLT_CONF_PATH'], "#{BIN_NAME}.conf", "~/.#{BIN_NAME}.conf", "/etc/#{BIN_NAME}.conf"].reject do |path|
+  def self.find
+    conf_path = [ENV['GLT_CONF_PATH'], "#{Glt::BIN_NAME}.conf", "~/.#{Glt::BIN_NAME}.conf", "/etc/#{Glt::BIN_NAME}.conf"].reject do |path|
       path.to_s.empty?
     end.map {|path| File.expand_path path}.find do |conf_path|
       File.exists?(File.expand_path(conf_path.to_s))
     end
 
-    unless conf_path
-      STDERR.puts "Can't find configuration path. aborting"
-      exit 2
-    end
+    new(conf_path) if conf_path
+  end
 
+  def initialize(conf_path)
     @conf = YAML.load_file(conf_path)
   end
 
