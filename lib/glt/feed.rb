@@ -1,4 +1,5 @@
 require 'open-uri'
+require 'cgi'
 begin
   require 'simple-rss'
 rescue LoadError
@@ -43,7 +44,7 @@ class Glt::Feed
     end
 
     def url
-      @item.link
+      CGI.unescapeHTML(@item.link)
     end
 
     def file_name

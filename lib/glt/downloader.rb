@@ -16,8 +16,8 @@ class Glt::Downloader
     open(url) do |u|
       path.open("wb") do |f|
         buffer = ""
-        until (size = u.read buffer, 1024).zero?
-          f.write buffer, size
+        while u.read 1024, buffer
+          f.write buffer
         end
       end
     end
