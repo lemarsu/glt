@@ -8,6 +8,8 @@ require 'logger'
 require 'open-uri'
 require 'pathname'
 
+BIN_NAME = "glt"
+
 class Downloader
   class DownloadError < StandardError; end
 
@@ -20,8 +22,8 @@ class Downloader
     if path.exist? && !force
       raise DownloadError.new "File exists (force off)"
     end
-    path.open("wb") do |f|
-      open(url) do |u|
+    open(url) do |u|
+      path.open("wb") do |f|
         buffer = ""
         until (size = u.read buffer, 1024).zero?
           f.write buffer, size
@@ -36,14 +38,14 @@ end
 class Feed
   class FeedError < StandardError; end
 
-  def self.open(url)
-    yield new url
+  def self.open(feed_conf)
+    yield new feed_conf
   end
 
   def initialize(feed_conf)
     @feed_conf = feed_conf
     # FIXME Catch posibles exceptions
-    @feed = open(feed_conf["url"]) {|f| SimpleRSS.parse f}
+    @feed = open(feed_conf.url) {|f| SimpleRSS.parse f}
     raise FeedError.new "Couldn't connect." unless @feed
   end
 
@@ -56,8 +58,7 @@ class Feed
   end
 
   def exclude?(item)
-    return false if @feed_conf['exclude'].nil?
-    Array(@feed_conf['exclude']).map {|re| Regexp.new(re)}.any? {|re| re.match(item.name)}
+    @feed_conf.exclude.map {|re| Regexp.new(re)}.any? {|re| re.match(item.name)}
   end
 
   class Item
@@ -86,45 +87,94 @@ class Feed
   end
 end
 
-CONF_PATH = [ENV['GLT_CONF_PATH'], 'glt.conf', "~/.glt.conf", "/etc/glt.conf"].reject do |path|
-  path.to_s.empty?
-end.map {|path| File.expand_path path}.find do |conf_path|
-  File.exists?(File.expand_path(conf_path.to_s))
+class GltConfig
+  attr_reader :conf
+
+  def initialize
+    conf_path = [ENV['GLT_CONF_PATH'], "#{BIN_NAME}.conf", "~/.#{BIN_NAME}.conf", "/etc/#{BIN_NAME}.conf"].reject do |path|
+      path.to_s.empty?
+    end.map {|path| File.expand_path path}.find do |conf_path|
+      File.exists?(File.expand_path(conf_path.to_s))
+    end
+
+    unless conf_path
+      STDERR.puts "Can't find configuration path. aborting"
+      exit 2
+    end
+
+    @conf = YAML.load_file(conf_path)
+  end
+
+  def logger
+    @logger ||= Logger.new(log_file)
+  end
+
+  def download_path
+    conf['global'] && conf['global']['download_to'] || '.'
+  end
+
+  def feeds
+    (conf['feeds']||[]).map {|cf| Feed.new self, cf}
+  end
+
+  private
+  private :conf
+
+  def log_file
+    conf['global'] && conf['global']['log_file'] || STDERR
+  end
+
+  class Feed
+    attr_reader :conf, :data
+
+    def initialize(conf, data)
+      @conf, @data = conf, data
+    end
+
+    def name
+      data["name"]
+    end
+
+    def url
+      data["url"]
+    end
+
+    def exclude
+      @exclude ||= data['exclude'] ? Array(data['exclude']) : []
+    end
+
+    private :conf
+    private :data
+  end
 end
 
-unless CONF_PATH
-  STDERR.puts "Can't find configuration path. aborting"
-  exit 2
-end
 
-$conf = YAML.load_file(CONF_PATH)
+conf = GltConfig.new
 
-$logger = Logger.new($conf['global'] && $conf['global']['log_file'] || STDERR)
-
-$logger.info "Starting"
-downloader = Downloader.new($conf['global'] && $conf['global']['download_to'] || '.')
-$conf["feeds"].each do |feed_conf|
+conf.logger.info "Starting"
+downloader = Downloader.new(conf.download_path)
+conf.feeds.each do |feed_conf|
   begin
-    $logger.info "Searching #{feed_conf["name"]}..."
+    conf.logger.info "Searching #{feed_conf.name}..."
 
     Feed.open feed_conf do |feed|
       feed.all.each do |fi|
         if fi.excluded?
-          $logger.info %[Skipping file "#{fi.file_name}: Excluded by pattern."]
+          conf.logger.info %[Skipping file "#{fi.file_name}: Excluded by pattern."]
           next
         end
 
         begin
           downloader.download_to(fi.url, fi.file_name)
         rescue Downloader::DownloadError => x
-          $logger.warn %[Couldn't download "#{fi.url}" into "#{fi.file_name}": #{x}]
+          conf.logger.warn %[Couldn't download "#{fi.url}" into "#{fi.file_name}": #{x}]
         else
-          $logger.info %[Downloaded "#{fi.url}" into "#{fi.file_name}"]
+          conf.logger.info %[Downloaded "#{fi.url}" into "#{fi.file_name}"]
         end
       end
     end
   ensure
-    $logger.info "Finished #{feed_conf["name"]}"
+    conf.logger.info "Finished #{feed_conf.name}"
   end
 end
-$logger.info "Exiting"
+conf.logger.info "Exiting"
