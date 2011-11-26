@@ -1,3 +1,10 @@
+require 'open-uri'
+begin
+  require 'simple-rss'
+rescue LoadError
+  require 'rubygems' and retry
+end
+
 class Glt::Feed
   class FeedError < StandardError; end
 

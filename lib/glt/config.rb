@@ -1,3 +1,5 @@
+require 'yaml'
+
 class Glt::Config
   attr_reader :conf
 

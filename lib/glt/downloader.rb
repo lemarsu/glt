@@ -1,3 +1,6 @@
+require 'pathname'
+require 'open-uri'
+
 class Glt::Downloader
   class DownloadError < StandardError; end
 

@@ -1,3 +1,5 @@
+require 'logger'
+
 class Glt::Bin
   attr_reader :conf
 

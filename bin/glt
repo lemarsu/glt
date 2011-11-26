@@ -1,15 +1,7 @@
 #!/usr/bin/env ruby
 #
 
-require 'rubygems'
-require 'simple-rss'
-require 'yaml'
-require 'logger'
-require 'open-uri'
-require 'pathname'
-
 $: << File.expand_path('../../lib', __FILE__)
-
 require 'glt'
 
 unless config = Glt::Config.find
