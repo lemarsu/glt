@@ -1,3 +1,5 @@
+require 'cgi'
+
 class Glt::Feed
   class FeedError < StandardError; end
 
@@ -36,7 +38,7 @@ class Glt::Feed
     end
 
     def url
-      @item.link
+      CGI.unescapeHTML(@item.link)
     end
 
     def file_name
