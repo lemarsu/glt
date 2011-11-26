@@ -8,156 +8,21 @@ require 'logger'
 require 'open-uri'
 require 'pathname'
 
+$: << File.expand_path('../../lib', __FILE__)
+
+require 'glt'
+
 BIN_NAME = "glt"
 
-class Downloader
-  class DownloadError < StandardError; end
-
-  def initialize(folder)
-    @folder = Pathname.new(folder)
-  end
-
-  def download_to(url, filename, force = false)
-    path = @folder + filename
-    if path.exist? && !force
-      raise DownloadError.new "File exists (force off)"
-    end
-    open(url) do |u|
-      path.open("wb") do |f|
-        buffer = ""
-        until (size = u.read buffer, 1024).zero?
-          f.write buffer, size
-        end
-      end
-    end
-  rescue OpenURI::HTTPError, SystemCallError => x
-    raise DownloadError.new x.message
-  end
-end
-
-class Feed
-  class FeedError < StandardError; end
-
-  def self.open(feed_conf)
-    yield new feed_conf
-  end
-
-  def initialize(feed_conf)
-    @feed_conf = feed_conf
-    # FIXME Catch posibles exceptions
-    @feed = open(feed_conf.url) {|f| SimpleRSS.parse f}
-    raise FeedError.new "Couldn't connect." unless @feed
-  end
-
-  def items
-    all.reject {|i| exclude?(i)}
-  end
-
-  def all(&blk)
-    @feed.items.map {|i| Item.new(self, i)}.each(&blk)
-  end
-
-  def exclude?(item)
-    @feed_conf.exclude.map {|re| Regexp.new(re)}.any? {|re| re.match(item.name)}
-  end
-
-  class Item
-    attr_reader :feed
-
-    def initialize(feed, item)
-      @feed, @item = feed, item
-    end
-
-    def name
-      @item.title
-    end
-
-    def url
-      @item.link
-    end
-
-    def file_name
-      title = name.gsub /[^\w-]+/, '_'
-      "#{title}.torrent"
-    end
-
-    def excluded?
-      feed.exclude?(self)
-    end
-  end
-end
-
-class GltConfig
-  attr_reader :conf
-
-  def initialize
-    conf_path = [ENV['GLT_CONF_PATH'], "#{BIN_NAME}.conf", "~/.#{BIN_NAME}.conf", "/etc/#{BIN_NAME}.conf"].reject do |path|
-      path.to_s.empty?
-    end.map {|path| File.expand_path path}.find do |conf_path|
-      File.exists?(File.expand_path(conf_path.to_s))
-    end
-
-    unless conf_path
-      STDERR.puts "Can't find configuration path. aborting"
-      exit 2
-    end
-
-    @conf = YAML.load_file(conf_path)
-  end
-
-  def logger
-    @logger ||= Logger.new(log_file)
-  end
-
-  def download_path
-    conf['global'] && conf['global']['download_to'] || '.'
-  end
-
-  def feeds
-    (conf['feeds']||[]).map {|cf| Feed.new self, cf}
-  end
-
-  private
-  private :conf
-
-  def log_file
-    conf['global'] && conf['global']['log_file'] || STDERR
-  end
-
-  class Feed
-    attr_reader :conf, :data
-
-    def initialize(conf, data)
-      @conf, @data = conf, data
-    end
-
-    def name
-      data["name"]
-    end
-
-    def url
-      data["url"]
-    end
-
-    def exclude
-      @exclude ||= data['exclude'] ? Array(data['exclude']) : []
-    end
-
-    private :conf
-    private :data
-  end
-end
-
-
-conf = GltConfig.new
+conf = Glt::Config.new
 
 conf.logger.info "Starting"
-downloader = Downloader.new(conf.download_path)
+downloader = Glt::Downloader.new(conf.download_path)
 conf.feeds.each do |feed_conf|
   begin
     conf.logger.info "Searching #{feed_conf.name}..."
 
-    Feed.open feed_conf do |feed|
+    Glt::Feed.open feed_conf do |feed|
       feed.all.each do |fi|
         if fi.excluded?
           conf.logger.info %[Skipping file "#{fi.file_name}: Excluded by pattern."]
@@ -166,7 +31,7 @@ conf.feeds.each do |feed_conf|
 
         begin
           downloader.download_to(fi.url, fi.file_name)
-        rescue Downloader::DownloadError => x
+        rescue Glt::Downloader::DownloadError => x
           conf.logger.warn %[Couldn't download "#{fi.url}" into "#{fi.file_name}": #{x}]
         else
           conf.logger.info %[Downloaded "#{fi.url}" into "#{fi.file_name}"]
