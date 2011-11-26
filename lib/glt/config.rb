@@ -1,6 +1,8 @@
 require 'yaml'
+require 'logger'
 
 class Glt::Config
+  class ConfigError < StandardError; end
   attr_reader :conf
 
   def self.find
@@ -10,15 +12,24 @@ class Glt::Config
       File.exists?(File.expand_path(conf_path.to_s))
     end
 
-    new(conf_path) if conf_path
+
+    if conf_path
+      new(conf_path)
+    else
+      raise ConfigError, "Can't find configuration path. aborting"
+    end
   end
 
   def initialize(conf_path)
     @conf = YAML.load_file(conf_path)
+    check_log_level
   end
 
   def logger
-    @logger ||= Logger.new(log_file)
+    return @logger if @logger
+    @logger = Logger.new(log_file)
+    @logger.level = Logger.const_get(@log_level)
+    @logger
   end
 
   def download_path
@@ -34,6 +45,17 @@ class Glt::Config
 
   def log_file
     conf['global'] && conf['global']['log_file'] || STDERR
+  end
+
+  def check_log_level
+    log_level = (conf['global']['log_level'] || 'info')
+    if Logger::SEV_LABEL.include? log_level.upcase
+      @log_level = log_level.upcase
+      return
+    end
+    log_levels = Logger::SEV_LABEL.map(&:downcase) * ', '
+    message = %[Unknown log level "#{log_level}", should be one of [#{log_levels}]]
+    raise ConfigError, message, caller(2)
   end
 
   class Feed
