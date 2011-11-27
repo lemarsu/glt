@@ -1,19 +1,14 @@
 #!/usr/bin/env ruby
 #
 
-require 'rubygems'
-require 'simple-rss'
-require 'yaml'
-require 'logger'
-require 'open-uri'
-require 'pathname'
-
 $: << File.expand_path('../../lib', __FILE__)
-
 require 'glt'
 
-unless config = Glt::Config.find
-  STDERR.puts "Can't find configuration path. aborting"
+config = nil
+begin
+  config = Glt::Config.find
+rescue Glt::Config::ConfigError => ex
+  STDERR.puts "Error: #{ex}"
   exit 2
 end
 
